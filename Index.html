@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>iftar roulette</title>
+<style>
+body{background:#0f0f1a;color:white;font-family:Arial;padding:30px;}
+.hidden{display:none;}
+input,select,button{padding:8px;margin:5px;border-radius:20px;border:none;}
+button{background:gold;cursor:pointer;}
+.item{background:#1e1e2f;padding:15px;margin:10px 0;border-radius:12px;}
+.box{background:#1e1e2f;padding:15px;margin:10px 0;border-radius:12px;}
+#cart{position:fixed;top:20px;right:20px;width:280px;background:#222;padding:15px;border-radius:15px;}
+textarea{width:100%;height:60px;border-radius:10px;padding:5px;}
+</style>
+</head>
+<body>
+
+<h1>🔥 Iftar Roulette 🔥</h1>
+
+<div id="authBox">
+<h2>Login</h2>
+<input id="loginUser" placeholder="Username">
+<input id="loginPass" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
+
+<h3>Sign Up</h3>
+<input id="signupUser" placeholder="Username">
+<input id="signupPass" type="password" placeholder="Password">
+<input id="signupNumber" placeholder="Phone">
+<button onclick="signup()">Sign Up</button>
+</div>
+
+<div id="mainApp" class="hidden">
+<button onclick="logout()">Logout</button>
+<div id="menu"></div>
+
+<div id="cart">
+<h3>Cart</h3>
+<div id="cartItems"></div>
+<p>Total: <span id="total">0</span> SAR</p>
+<button onclick="checkout()">Buy</button>
+</div>
+
+<h2>Your Receipts</h2>
+<div id="myReceipts"></div>
+</div>
+
+<div id="adminLoginBox" class="hidden">
+<h1>Admin Panel</h1>
+<input type="password" id="adminPass" placeholder="Admin Password">
+<button onclick="adminLogin()">Enter</button>
+</div>
+
+<div id="adminPanel" class="hidden">
+
+<h2>Add Food / Drink</h2>
+<input id="itemName" placeholder="Name">
+<input id="itemPrice" type="number" placeholder="Price">
+<input id="itemSale" placeholder="Sale (ex: 10% Ramadan)">
+<select id="itemCategory" onchange="toggleDrink()">
+<option value="Food">Food</option>
+<option value="Drinks">Drinks</option>
+</select>
+
+<select id="literSelect" class="hidden">
+<option value="250ml">250ml</option>
+<option value="500ml">500ml</option>
+<option value="1L">1L</option>
+<option value="2L">2L</option>
+</select>
+
+<button onclick="addNormalItem()">Add Item</button>
+
+<h2>Create Combo</h2>
+<input id="comboName" placeholder="Combo Name">
+<textarea id="comboItemsAdmin" placeholder="Burger x2&#10;Fries x1&#10;Cola x2"></textarea>
+<input id="comboPrice" type="number" placeholder="Combo Price">
+<button onclick="addCombo()">Add Combo</button>
+
+<h2>All Items (Delete)</h2>
+<div id="allItems"></div>
+
+<h2>All Receipts</h2>
+<div id="ordersList"></div>
+
+<button onclick="logout()">Logout</button>
+</div>
+
+<script>
+let currentUser=null;
+let cart=[];
+const ADMIN_PASSWORD="iftar123";
+
+/* USER SYSTEM */
+function signup(){
+let u=signupUser.value.trim();
+let p=signupPass.value.trim();
+let n=signupNumber.value.trim();
+if(!u||!p||!n)return alert("Fill fields");
+let users=JSON.parse(localStorage.getItem("users"))||[];
+users.push({username:u,password:p,number:n});
+localStorage.setItem("users",JSON.stringify(users));
+alert("Account created");
+}
+
+function login(){
+let u=loginUser.value.trim();
+let p=loginPass.value.trim();
+if(u==="Admin Panel" && p==="iftar123"){
+authBox.classList.add("hidden");
+adminLoginBox.classList.remove("hidden");
+return;
+}
+let users=JSON.parse(localStorage.getItem("users"))||[];
+let user=users.find(x=>x.username===u&&x.password===p);
+if(!user)return alert("Wrong login");
+currentUser=user;
+authBox.classList.add("hidden");
+mainApp.classList.remove("hidden");
+loadMenu();
+loadReceipts();
+}
+
+function logout(){
+currentUser=null;
+cart=[];
+authBox.classList.remove("hidden");
+mainApp.classList.add("hidden");
+adminPanel.classList.add("hidden");
+adminLoginBox.classList.add("hidden");
+updateCart();
+}
+
+/* ADMIN SYSTEM */
+function adminLogin(){
+if(adminPass.value===ADMIN_PASSWORD){
+adminLoginBox.classList.add("hidden");
+adminPanel.classList.remove("hidden");
+loadItems();
+loadOrders();
+}else alert("Wrong password");
+}
+
+function toggleDrink(){
+const cat=itemCategory.value;
+if(cat==="Drinks") literSelect.classList.remove("hidden");
+else literSelect.classList.add("hidden");
+}
+
+function addNormalItem(){
+const name=itemName.value.trim();
+const price=parseFloat(itemPrice.value);
+const sale=itemSale.value.trim();
+const cat=itemCategory.value;
+const liter=literSelect.value;
+if(!name||!price) return alert("Fill fields");
+let finalName=name;
+if(cat==="Drinks") finalName+=" ("+liter+")";
+let items=JSON.parse(localStorage.getItem("menuItems"))||[];
+items.push({type:cat,name:finalName,price:price,sale:sale});
+localStorage.setItem("menuItems",JSON.stringify(items));
+loadItems();
+}
+
+function addCombo(){
+const name=comboName.value.trim();
+const itemsText=comboItemsAdmin.value.trim();
+const price=parseFloat(comboPrice.value);
+if(!name||!itemsText||!price) return alert("Fill combo fields");
+let items=JSON.parse(localStorage.getItem("menuItems"))||[];
+items.push({
+type:"Combo",
+name:name,
+comboItems:itemsText.split("\n"),
+price:price
+});
+localStorage.setItem("menuItems",JSON.stringify(items));
+loadItems();
+}
+
+function deleteItem(index){
+let items=JSON.parse(localStorage.getItem("menuItems"))||[];
+items.splice(index,1);
+localStorage.setItem("menuItems",JSON.stringify(items));
+loadItems();
+}
+
+function loadItems(){
+const items=JSON.parse(localStorage.getItem("menuItems"))||[];
+allItems.innerHTML="";
+items.forEach((item,i)=>{
+allItems.innerHTML+=`
+<div class="box">
+<strong>${item.name}</strong> - ${item.price} SAR ${item.sale ? "(" + item.sale + ")" : ""}
+<button onclick="deleteItem(${i})">Delete</button>
+</div>`;
+});
+}
+
+function loadOrders(){
+const orders=JSON.parse(localStorage.getItem("orders"))||[];
+ordersList.innerHTML="";
+orders.forEach((o,i)=>{
+let itemsHTML="";
+o.items.forEach(it=>{
+itemsHTML+=`<li>${it.name} - ${it.price}${it.sale ? " ("+it.sale+")" : ""}</li>`;
+});
+ordersList.innerHTML+=`
+<div class="box" id="receipt${i}">
+<h3>${o.username}</h3>
+<p>Phone: ${o.number}</p>
+<ul>${itemsHTML}</ul>
+<p>Total: ${o.total} SAR</p>
+<button onclick="printReceipt('receipt${i}')">Print</button>
+</div>`;
+});
+}
+
+/* SHOP SYSTEM */
+function loadMenu(){
+let items=JSON.parse(localStorage.getItem("menuItems"))||[];
+menu.innerHTML="";
+items.forEach((item,i)=>{
+let extra="";
+if(item.sale) extra+="<p>Sale: "+item.sale+"</p>";
+if(item.type==="Combo" && item.comboItems){
+extra+="<ul>";
+item.comboItems.forEach(c=>extra+="<li>"+c+"</li>");
+extra+="</ul>";
+}
+menu.innerHTML+=`
+<div class="item">
+<h3>${item.name}</h3>
+<p>${item.price} SAR ${item.sale ? "(" + item.sale + ")" : ""}</p>
+${extra}
+<button onclick="addToCart(${i})">Add</button>
+</div>`;
+});
+}
+
+function addToCart(i){
+let items=JSON.parse(localStorage.getItem("menuItems"))||[];
+cart.push(items[i]);
+updateCart();
+}
+
+function updateCart(){
+cartItems.innerHTML="";
+let total=0;
+cart.forEach(i=>{
+let itemPrice=parseFloat(i.price);
+total+=itemPrice;
+cartItems.innerHTML+=`<p>${i.name} - ${itemPrice} SAR ${i.sale ? "(" + i.sale + ")" : ""}</p>`;
+});
+document.getElementById("total").innerText=total.toFixed(2);
+}
+
+function checkout(){
+if(cart.length===0)return alert("Cart empty");
+let total=document.getElementById("total").innerText;
+let order={
+id:Date.now(),
+username:currentUser.username,
+number:currentUser.number,
+items:cart,
+total:total
+};
+let orders=JSON.parse(localStorage.getItem("orders"))||[];
+orders.push(order);
+localStorage.setItem("orders",JSON.stringify(orders));
+cart=[];
+updateCart();
+loadReceipts();
+alert("Purchase complete");
+}
+
+function loadReceipts(){
+let orders=JSON.parse(localStorage.getItem("orders"))||[];
+let my=orders.filter(o=>o.username===currentUser.username);
+myReceipts.innerHTML="";
+my.forEach((o,i)=>{
+let itemsHTML="";
+o.items.forEach(it=>{
+itemsHTML+=`<li>${it.name} - ${it.price}${it.sale ? " ("+it.sale+")" : ""}</li>`;
+});
+myReceipts.innerHTML+=`
+<div class="item">
+<ul>${itemsHTML}</ul>
+<p>Total: ${o.total} SAR</p>
+</div>`;
+});
+}
+
+function printReceipt(id){
+const content=document.getElementById(id).innerHTML;
+const win=window.open("");
+win.document.write(content);
+win.print();
+}
+</script>
+</body>
+</html>
