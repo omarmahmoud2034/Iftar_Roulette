@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>iftar roulette</title>
+<style>
+body{background:#0f0f1a;color:white;font-family:Arial;padding:30px;}
+.hidden{display:none;}
+input,button{padding:8px;margin:5px;border-radius:20px;border:none;}
+button{background:gold;cursor:pointer;}
+.item{background:#1e1e2f;padding:15px;margin:10px 0;border-radius:12px;}
+#cart{position:fixed;top:20px;right:20px;width:280px;background:#222;padding:15px;border-radius:15px;}
+</style>
+</head>
+<body>
+
+<h1>🔥 Iftar Roulette 🔥</h1>
+
+<div id="authBox">
+<h2>Login</h2>
+<input id="loginUser" placeholder="Username">
+<input id="loginPass" type="password" placeholder="Password">
+<button onclick="login()">Login</button>
+
+<h3>Sign Up</h3>
+<input id="signupUser" placeholder="Username">
+<input id="signupPass" type="password" placeholder="Password">
+<input id="signupNumber" placeholder="Phone">
+<button onclick="signup()">Sign Up</button>
+</div>
+
+<div id="mainApp" class="hidden">
+<button onclick="logout()">Logout</button>
+<div id="menu"></div>
+
+<div id="cart">
+<h3>Cart</h3>
+<div id="cartItems"></div>
+<p>Total: <span id="total">0</span> SAR</p>
+<button onclick="checkout()">Buy</button>
+</div>
+
+<h2>Your Receipts</h2>
+<div id="myReceipts"></div>
+</div>
+
+<script>
+
+let currentUser=null;
+let cart=[];
+
+function signup(){
+let u=signupUser.value.trim();
+let p=signupPass.value.trim();
+let n=signupNumber.value.trim();
+if(!u||!p||!n)return alert("Fill fields");
+let users=JSON.parse(localStorage.getItem("users"))||[];
+users.push({username:u,password:p,number:n});
+localStorage.setItem("users",JSON.stringify(users));
+alert("Account created");
+}
+
+function login(){
+let u=loginUser.value.trim();
+let p=loginPass.value.trim();
+let users=JSON.parse(localStorage.getItem("users"))||[];
+let user=users.find(x=>x.username===u&&x.password===p);
+if(!user)return alert("Wrong login");
+currentUser=user;
+authBox.classList.add("hidden");
+mainApp.classList.remove("hidden");
+loadMenu();
+loadReceipts();
+}
+
+function logout(){
+currentUser=null;
+authBox.classList.remove("hidden");
+mainApp.classList.add("hidden");
+}
+
+function loadMenu(){
+let items=JSON.parse(localStorage.getItem("menuItems"))||[];
+menu.innerHTML="";
+items.forEach((item,i)=>{
+let extra="";
+if(item.sale) extra+="<p>Sale: "+item.sale+"</p>";
+if(item.type==="Combo"){
+extra+="<ul>";
+item.comboItems.forEach(c=>extra+="<li>"+c+"</li>");
+extra+="</ul>";
+}
+menu.innerHTML+=`
+<div class="item">
+<h3>${item.name}</h3>
+<p>${item.price} SAR</p>
+${extra}
+<button onclick="addToCart(${i})">Add</button>
+</div>`;
+});
+}
+
+function addToCart(i){
+let items=JSON.parse(localStorage.getItem("menuItems"))||[];
+cart.push(items[i]);
+updateCart();
+}
+
+function updateCart(){
+cartItems.innerHTML="";
+let total=0;
+cart.forEach(i=>{
+total+=parseFloat(i.price);
+cartItems.innerHTML+=`<p>${i.name} - ${i.price}</p>`;
+});
+totalSpan=document.getElementById("total");
+totalSpan.innerText=total.toFixed(2);
+}
+
+function checkout(){
+if(cart.length===0)return alert("Cart empty");
+let order={
+id:Date.now(),
+username:currentUser.username,
+number:currentUser.number,
+items:cart,
+total:document.getElementById("total").innerText
+};
+let orders=JSON.parse(localStorage.getItem("orders"))||[];
+orders.push(order);
+localStorage.setItem("orders",JSON.stringify(orders));
+cart=[];
+updateCart();
+loadReceipts();
+alert("Purchase complete");
+}
+
+function loadReceipts(){
+let orders=JSON.parse(localStorage.getItem("orders"))||[];
+let my=orders.filter(o=>o.username===currentUser.username);
+myReceipts.innerHTML="";
+my.forEach((o,i)=>{
+let itemsHTML="";
+o.items.forEach(it=>itemsHTML+=`<li>${it.name} - ${it.price}</li>`);
+myReceipts.innerHTML+=`
+<div class="item" id="myReceipt${i}">
+<h4>Receipt</h4>
+<ul>${itemsHTML}</ul>
+<p>Total: ${o.total} SAR</p>
+<button onclick="printReceipt('myReceipt${i}')">Print</button>
+</div>`;
+});
+}
+
+function printReceipt(id){
+let content=document.getElementById(id).innerHTML;
+let win=window.open("");
+win.document.write(content);
+win.print();
+}
+
+</script>
+</body>
+</html>
